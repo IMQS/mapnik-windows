@@ -157,13 +157,14 @@ private:
     std::atomic< std::size_t >                      use_count_{ 0 };
     std::atomic< unsigned int >                     flags_;
     std::atomic< type >                             type_;
+    std::atomic< scheduler * >                      scheduler_{ nullptr };
 #else
     std::size_t                                     use_count_{ 0 };
     unsigned int                                    flags_;
     type                                            type_;
+    scheduler                                   *   scheduler_{ nullptr };
 #endif
     launch                                          policy_{ launch::post };
-    scheduler                                   *   scheduler_{ nullptr };
 #if (BOOST_EXECUTION_CONTEXT==1)
     boost::context::execution_context               ctx_;
 #else
@@ -194,7 +195,7 @@ private:
 #else
     template< typename Fn, typename Tpl >
     boost::context::execution_context< detail::data_t * >
-    run_( boost::context::execution_context< detail::data_t * > ctx, Fn && fn_, Tpl && tpl_, detail::data_t * dp) noexcept {
+    run_( boost::context::execution_context< detail::data_t * > && ctx, Fn && fn_, Tpl && tpl_, detail::data_t * dp) noexcept {
         {
             // fn and tpl must be destroyed before calling set_terminated()
             typename std::decay< Fn >::type fn = std::forward< Fn >( fn_);
@@ -219,6 +220,7 @@ public:
     detail::terminated_hook                 terminated_hook_{};
     detail::wait_hook                       wait_hook_{};
     detail::worker_hook                     worker_hook_{};
+    std::atomic< context * >                remote_nxt_{ nullptr };
     std::chrono::steady_clock::time_point   tp_{ (std::chrono::steady_clock::time_point::max)() };
 
     typedef intrusive::list<
@@ -336,8 +338,8 @@ public:
         ctx_{ std::allocator_arg, palloc, salloc,
               detail::wrap(
                   [this]( typename std::decay< Fn >::type & fn, typename std::decay< Tpl >::type & tpl,
-                          boost::context::execution_context< detail::data_t * > ctx, detail::data_t * dp) mutable noexcept {
-                        return run_( std::move( ctx), std::move( fn), std::move( tpl), dp);
+                          boost::context::execution_context< detail::data_t * > && ctx, detail::data_t * dp) mutable noexcept {
+                        return run_( std::forward< boost::context::execution_context< detail::data_t * > >( ctx), std::move( fn), std::move( tpl), dp);
                   },
                   std::forward< Fn >( fn),
                   std::forward< Tpl >( tpl) )}
@@ -345,8 +347,8 @@ public:
 # else
         ctx_{ std::allocator_arg, palloc, salloc,
               [this,fn=detail::decay_copy( std::forward< Fn >( fn) ),tpl=std::forward< Tpl >( tpl)]
-               (boost::context::execution_context< detail::data_t * > ctx, detail::data_t * dp) mutable noexcept {
-                    return run_( std::move( ctx), std::move( fn), std::move( tpl), dp);
+               (boost::context::execution_context< detail::data_t * > && ctx, detail::data_t * dp) mutable noexcept {
+                    return run_( std::forward< boost::context::execution_context< detail::data_t * > >( ctx), std::move( fn), std::move( tpl), dp);
               }}
 # endif
 #endif
@@ -357,7 +359,13 @@ public:
 
     virtual ~context();
 
-    scheduler * get_scheduler() const noexcept;
+    scheduler * get_scheduler() const noexcept {
+#if ! defined(BOOST_FIBERS_NO_ATOMICS)
+        return scheduler_.load( std::memory_order_relaxed);
+#else
+        return scheduler_;
+#endif
+    }
 
     id get_id() const noexcept;
 

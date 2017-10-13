@@ -32,8 +32,6 @@
 #include <cstdlib>
 #include <algorithm>
 
-#pragma warning(disable: 4661) // IMQS
-
 namespace mapnik {
 
 class illegal_enum_value : public std::exception
@@ -46,9 +44,9 @@ public:
         what_( _what )
     {
     }
-    virtual ~illegal_enum_value() throw() {}
+    virtual ~illegal_enum_value() {}
 
-    virtual const char * what() const throw()
+    virtual const char * what() const noexcept
     {
         return what_.c_str();
     }

@@ -288,7 +288,7 @@ bool hit_test_first(PathType & path, double x, double y)
 namespace label {
 
 template <typename PathType>
-bool middle_point(PathType & path, double & x, double & y)
+bool middle_point(PathType & path, double & x, double & y, double * angle = nullptr)
 {
     double x0 = 0;
     double y0 = 0;
@@ -309,6 +309,10 @@ bool middle_point(PathType & path, double & x, double & y)
             double r = (mid_length - dist)/seg_length;
             x = x0 + (x1 - x0) * r;
             y = y0 + (y1 - y0) * r;
+            if (angle)
+            {
+                *angle = atan2(y1 - y0, x1 - x0);
+            }
             break;
         }
         dist += seg_length;
